@@ -1,20 +1,13 @@
-import { CameraView } from 'expo-camera'; // Updated import for new API
+import { CameraView, useCameraPermissions } from 'expo-camera'; // Updated import for hook
 import { DeviceMotion } from 'expo-sensors';
 import React, { useEffect, useState } from 'react';
-import { Dimensions, StyleSheet, Text, View } from 'react-native';
+import { Button, Dimensions, StyleSheet, Text, View } from 'react-native'; // Added Button import
 
 const { width } = Dimensions.get('window');
 
 export default function Index() {
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [permission, requestPermission] = useCameraPermissions(); // Use the permissions hook
   const [heading, setHeading] = useState(0);
-
-  useEffect(() => {
-    (async () => {
-      const { status } = await CameraView.requestCameraPermissionsAsync(); // Updated to CameraView for permissions (method is the same)
-      setHasPermission(status === 'granted');
-    })();
-  }, []);
 
   useEffect(() => {
     DeviceMotion.setUpdateInterval(100); // Update every 100ms for smoother animation without overwhelming the UI
@@ -28,11 +21,18 @@ export default function Index() {
     return () => subscription.remove();
   }, []);
 
-  if (hasPermission === null) {
-    return <View />;
+  if (permission === null) {
+    return <View />; // Loading state while checking permissions
   }
-  if (hasPermission === false) {
-    return <Text>No access to camera</Text>;
+
+  if (!permission.granted) {
+    // If permission not granted, show a message and button to request
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>No access to camera. Please grant permission.</Text>
+        <Button onPress={requestPermission} title="Grant Camera Permission" />
+      </View>
+    );
   }
 
   const directions = [
@@ -47,7 +47,7 @@ export default function Index() {
 
   return (
     <View style={styles.container}>
-      <CameraView style={styles.camera} facing={CameraType.back} /> {/* Updated component and prop */}
+      <CameraView style={styles.camera} facing="back" /> {/* Updated prop if needed, but "back" is fine */}
       <View style={styles.overlay}>
         <View style={styles.horizon} />
         {directions.map((dir) => {
