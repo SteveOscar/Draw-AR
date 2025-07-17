@@ -149,7 +149,7 @@ export default function Index() {
   // - fov: Horizontal FOV (~90° for typical phone camera)
   // - verticalFov: Vertical FOV (~55° for portrait mode; adjust based on device)
   // - pitchScale: Converts degrees to screen pixels for vertical movement
-  const fov = 90; // Horizontal field of view
+  const fov = 55; // Horizontal field of view
   const halfFov = fov / 2;
 
   const verticalFov = 55;
@@ -199,7 +199,12 @@ export default function Index() {
           {directions.map((dir) => {
             // Calculate angular offset for waypoint
             let offset = (dir.angle - heading + 720) % 360 - 180; // Normalize to -180 to 180
-            if (Math.abs(offset) > halfFov) return null; // Hide if outside FOV
+            const check = Math.abs((heading+360) - (dir.angle+360))
+            console.log('check: ', check)
+            const offset2 = Math.abs((heading - dir.angle))
+            const inView = offset2 < halfFov;
+            if (!inView) return null; // Hide if outside FOV
+            console.log('direction: ', dir.label, 'check: ', check, 'offset2: ', offset2)
             const position = (offset / halfFov) * (width / 2); // Scale to screen pixels; flip sign if movement direction is wrong: - (offset / halfFov)
             console.log('dir.label: ', dir.label, 'offset: ', offset, 'position: ', position)
             return (
@@ -208,7 +213,7 @@ export default function Index() {
                 style={[
                   styles.label,
                   {
-                    transform: [{ translateX: position }, { translateY: -12 }],
+                    transform: [{ translateX: 0 }, { translateY: -12 }],
                   },
                 ]}
               >
