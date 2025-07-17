@@ -1,5 +1,5 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Accelerometer, DeviceMotion } from 'expo-sensors';
+import { Accelerometer, DeviceMotion, Magnetometer } from 'expo-sensors';
 import React, { useEffect, useState } from 'react';
 import { Button, Dimensions, StyleSheet, Text, View } from 'react-native'; // Added Platform import
 
@@ -13,6 +13,8 @@ export default function Index() {
   // - pitch: Current tilt angle (typically ~90° when phone is vertical)
   const [permission, requestPermission] = useCameraPermissions();
   const [heading, setHeading] = useState(0);
+  const [magneto, setMagneto] = useState({ x: 0, y: 0, z: 0 });
+  const [acc, setAcc] = useState({ x: 0, y: 0, z: 1 }); // Added for tilt compensation
   const [pitch, setPitch] = useState(90); // Initial pitch assumption for vertical hold
   const [beta, setBeta] = useState(90); // Initial pitch assumption for vertical hold
   const [isBelowHorizon, setIsBelowHorizon] = useState(false);
@@ -31,7 +33,9 @@ export default function Index() {
   const smoothedPitchRef = React.useRef(90);
 
   useEffect(() => {
-    const subscription = Accelerometer.addListener(({ x, y, z }) => {
+    const subscription = Accelerometer.addListener((accData) => {
+      setAcc(accData);
+      const z = accData.z;
       if (isBelowRef.current) {
         // Only switch to above if z > +threshold
         if (z > Z_HYSTERESIS) {
@@ -53,29 +57,59 @@ export default function Index() {
     return () => subscription.remove(); // Clean up the listener on unmount
   }, []);
 
+  // Magnetometer-based heading with tilt compensation
+  useEffect(() => {
+    const subscription = Magnetometer.addListener((magData) => {
+      const { x: mx, y: my, z: mz } = magData;
+      setMagneto({ x: mx, y: my, z: mz });
+
+      // Use latest accelerometer data for tilt compensation
+      const { x: ax, y: ay, z: az } = acc;
+
+      // Calculate roll and pitch from accelerometer (in radians)
+      const roll = Math.atan2(ay, az);
+      const accelMagnitude = Math.sqrt(ay * ay + az * az);
+      const pitchFromAcc = Math.atan2(-ax, accelMagnitude);
+
+      // Trigonometric values
+      const cosPitch = Math.cos(pitchFromAcc);
+      const sinPitch = Math.sin(pitchFromAcc);
+      const cosRoll = Math.cos(roll);
+      const sinRoll = Math.sin(roll);
+
+      // Tilt-compensated horizontal components (common formula)
+      const Xh = mx * cosPitch + mz * sinPitch;
+      const Yh = mx * sinRoll * sinPitch + my * cosRoll - mz * sinRoll * cosPitch;
+
+      // Calculate heading
+      let newHeading = Math.atan2(Yh, Xh) * (180 / Math.PI);
+      if (newHeading < 0) newHeading += 360;
+
+      console.log('Compensated heading:', newHeading);
+
+      // Normalize to avoid jumps at 0/360
+      if (Math.abs(newHeading - smoothedHeadingRef.current) > 180) {
+        newHeading += newHeading < smoothedHeadingRef.current ? 360 : -360;
+      }
+
+      // Apply EMA smoothing
+      smoothedHeadingRef.current =
+        smoothedHeadingRef.current * (1 - headingSmoothing) + newHeading * headingSmoothing;
+      setHeading((smoothedHeadingRef.current + 360) % 360);
+    });
+    Magnetometer.setUpdateInterval(100); // 100ms
+    return () => subscription.remove();
+  }, [acc]); // Depend on acc state to recalculate if acc changes (though listener is independent)
+
   // Section: Sensor Effect
-  // - Sets up DeviceMotion listener for orientation data (heading and pitch)
+  // - Sets up DeviceMotion listener for orientation data (pitch only)
   // - Updates every 50ms for responsiveness
   // - Applies smoothing and normalization to raw sensor data
   useEffect(() => {
-    DeviceMotion.setUpdateInterval(50); // Faster update for better responsiveness
+    // DeviceMotion is now only used for pitch, not heading
+    DeviceMotion.setUpdateInterval(50);
     const subscription = DeviceMotion.addListener((motionData) => {
       if (motionData.rotation) {
-        // Heading calculation (azimuth/compass direction)
-        const alpha = motionData.rotation.alpha;
-        let newHeading = ((alpha * (180 / Math.PI) + 360) % 360);
-
-        // Normalize to prevent jumps at 0/360 boundary
-        if (Math.abs(newHeading - smoothedHeadingRef.current) > 180) {
-          newHeading += newHeading < smoothedHeadingRef.current ? 360 : -360;
-        }
-        // console.log('motionData: ', motionData)
-
-        // Apply exponential moving average (EMA) smoothing
-        smoothedHeadingRef.current =
-          smoothedHeadingRef.current * (1 - headingSmoothing) + newHeading * headingSmoothing;
-        setHeading((smoothedHeadingRef.current + 360) % 360);
-
         // Pitch calculation (front/back tilt)
         const beta = motionData.rotation.beta;
         const newPitch = beta * (180 / Math.PI);
@@ -185,7 +219,7 @@ export default function Index() {
           })}
         </View>
         <Text style={styles.debug}>
-          Heading: {Math.round(heading)}° | Pitch: {Math.round(pitch)}° | | {isBelowHorizon ? 'Below horizon' : 'Above horizon'}
+          Heading: {Math.round(heading)}° | Pitch: {Math.round(pitch)}° | | {isBelowHorizon ? 'Below horizon' : 'Above horizon'} | Magnetometer: x={magneto.x.toFixed(1)} y={magneto.y.toFixed(1)} z={magneto.z.toFixed(1)}
         </Text>
       </View>
     </View>
