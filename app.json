@@ -24,10 +24,12 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "expo-camera",
-    {
-      "cameraPermission": "This app needs camera access to show the augmented reality view."
-    },
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "This app needs camera access to show the augmented reality view."
+        }
+      ],
       "expo-router",
       [
         "expo-splash-screen",
