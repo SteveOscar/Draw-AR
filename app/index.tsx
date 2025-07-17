@@ -197,23 +197,17 @@ export default function Index() {
         >
           <View style={styles.horizon} />
           {directions.map((dir) => {
-            // Calculate angular offset for waypoint
-            let offset = (dir.angle - heading + 720) % 360 - 180; // Normalize to -180 to 180
-            const check = Math.abs((heading+360) - (dir.angle+360))
-            console.log('check: ', check)
-            const offset2 = Math.abs((heading - dir.angle))
-            const inView = offset2 < halfFov;
-            if (!inView) return null; // Hide if outside FOV
-            console.log('direction: ', dir.label, 'check: ', check, 'offset2: ', offset2)
-            const position = (offset / halfFov) * (width / 2); // Scale to screen pixels; flip sign if movement direction is wrong: - (offset / halfFov)
-            console.log('dir.label: ', dir.label, 'offset: ', offset, 'position: ', position)
+            // Calculate signed angular offset: -180 to 180
+            let offset = ((dir.angle - heading + 540) % 360) - 180;
+            if (Math.abs(offset) > halfFov) return null; // Hide if outside FOV
+            const position = (offset / halfFov) * (width / 2); // Scale to screen pixels
             return (
               <Text
                 key={dir.label}
                 style={[
                   styles.label,
                   {
-                    transform: [{ translateX: 0 }, { translateY: -12 }],
+                    transform: [{ translateX: position }, { translateY: -12 }],
                   },
                 ]}
               >
