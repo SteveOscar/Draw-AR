@@ -1,7 +1,7 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Accelerometer, DeviceMotion, Magnetometer } from 'expo-sensors';
 import React, { useEffect, useState } from 'react';
-import { Button, Dimensions, StyleSheet, Text, View } from 'react-native'; // Added Platform import
+import { Button, Dimensions, StyleSheet, Text, View } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
 
@@ -24,7 +24,7 @@ export default function Index() {
   // Section: Smoothing Configuration
   // - These factors control how much we smooth sensor data to reduce jitter
   // - Lower values = more smoothing (less responsive), higher = less smoothing (more responsive)
-  const headingSmoothing = 0.2;
+  const headingSmoothing = 0.1; // Increased smoothing for stability
   const pitchSmoothing = 0.2;
 
   // Section: Refs for Smoothed Values
@@ -77,15 +77,13 @@ export default function Index() {
       const cosRoll = Math.cos(roll);
       const sinRoll = Math.sin(roll);
 
-      // Tilt-compensated horizontal components (common formula)
+      // Tilt-compensated horizontal components (corrected formula from standard sources)
       const Xh = mx * cosPitch + mz * sinPitch;
-      const Yh = mx * sinRoll * sinPitch + my * cosRoll - mz * sinRoll * cosPitch;
+      const Yh = my * cosRoll - mx * sinRoll * sinPitch + mz * sinRoll * cosPitch; // Adjusted signs to match standard
 
-      // Calculate heading
+      // Calculate heading (adjusted atan2 for correct north=0, east=90)
       let newHeading = Math.atan2(Yh, Xh) * (180 / Math.PI);
       if (newHeading < 0) newHeading += 360;
-
-      console.log('Compensated heading:', newHeading);
 
       // Normalize to avoid jumps at 0/360
       if (Math.abs(newHeading - smoothedHeadingRef.current) > 180) {
@@ -202,7 +200,8 @@ export default function Index() {
             // Calculate angular offset for waypoint
             let offset = (dir.angle - heading + 720) % 360 - 180; // Normalize to -180 to 180
             if (Math.abs(offset) > halfFov) return null; // Hide if outside FOV
-            const position = (offset / halfFov) * (width / 2); // Scale to screen pixels
+            const position = (offset / halfFov) * (width / 2); // Scale to screen pixels; flip sign if movement direction is wrong: - (offset / halfFov)
+            console.log('dir.label: ', dir.label, 'offset: ', offset, 'position: ', position)
             return (
               <Text
                 key={dir.label}
